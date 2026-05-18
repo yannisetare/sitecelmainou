@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -12,6 +12,7 @@ import { NodeContentPanel } from '@/components/content/node-content-panel'
 import { MobileNodeAccordion } from '@/components/mobile-node-accordion'
 import { FileUploadSection } from '@/components/file-upload-section'
 import { EduClubsView } from '@/components/educlubs/educlubs-view'
+import { EmptyStateSparkle } from '@/components/empty-state-sparkle'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -34,7 +35,13 @@ import {
   Network,
   Users,
   Upload,
-  Filter
+  Filter,
+  BookOpen,
+  Sparkles,
+  CheckCircle2,
+  Circle,
+  CircleDot,
+  Lock
 } from 'lucide-react'
 import type { Profile, Graph, GraphNode, Edge, UserProgress } from '@/lib/types'
 
@@ -49,6 +56,8 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
   const [graphs, setGraphs] = useState(initialGraphs)
   const [loading, setLoading] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null)
   
   const {
     setUser,
@@ -133,16 +142,22 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
   const totalCount = getTotalNodesCount()
 
   // Sidebar content (shared between desktop and mobile)
-  const SidebarContent = () => (
+  const SidebarContent = ({ inputRef }: { inputRef: React.RefObject<HTMLInputElement | null> }) => (
     <>
-      {/* Search */}
+      {/* Search - Fixed focus retention */}
       <div className="p-4 border-b border-sidebar-border">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search graphs..."
+            ref={inputRef}
+            placeholder="Caută grafuri..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              e.stopPropagation()
+              setSearchQuery(e.target.value)
+            }}
+            onFocus={(e) => e.target.dataset.focused = 'true'}
+            onBlur={(e) => e.target.dataset.focused = 'false'}
             className="pl-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground placeholder:text-sidebar-foreground/50"
           />
         </div>
@@ -179,7 +194,7 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
           )}
         >
           <Network className="w-4 h-4" />
-          My Graphs
+          Grafurile Mele
         </button>
         <button
           onClick={() => setActiveView('educlubs')}
@@ -207,7 +222,7 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
           <div className="space-y-1">
             {filteredGraphs.length === 0 ? (
               <p className="px-3 py-2 text-sm text-sidebar-foreground/50">
-                {searchQuery ? 'No graphs found' : t('dashboard.noGraphs')}
+                {searchQuery ? 'Niciun graf găsit' : t('dashboard.noGraphs')}
               </p>
             ) : (
               filteredGraphs.map(graph => (
@@ -228,7 +243,7 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
                   <div className="flex-1 min-w-0">
                     <div className="truncate font-medium">{graph.title}</div>
                     <div className="text-xs text-sidebar-foreground/50 truncate">
-                      {graph.owner?.display_name || 'Unknown'}
+                      {graph.owner?.display_name || 'Necunoscut'}
                     </div>
                   </div>
                 </button>
@@ -237,6 +252,31 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
           </div>
         </div>
       </ScrollArea>
+
+      {/* Legend - Status indicators */}
+      <div className="p-3 border-t border-sidebar-border">
+        <div className="text-xs font-medium text-sidebar-foreground/60 uppercase tracking-wider mb-2">
+          Legendă Status
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="flex items-center gap-2 text-sidebar-foreground/70">
+            <CheckCircle2 className="w-3.5 h-3.5 text-accent" />
+            <span>Completat</span>
+          </div>
+          <div className="flex items-center gap-2 text-sidebar-foreground/70">
+            <CircleDot className="w-3.5 h-3.5 text-yellow-500" />
+            <span>În Progres</span>
+          </div>
+          <div className="flex items-center gap-2 text-sidebar-foreground/70">
+            <Circle className="w-3.5 h-3.5 text-primary" />
+            <span>Deblocat</span>
+          </div>
+          <div className="flex items-center gap-2 text-sidebar-foreground/70">
+            <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>Blocat</span>
+          </div>
+        </div>
+      </div>
 
       {/* Create Graph Button (Teacher only) */}
       {user.role === 'teacher' && (
@@ -263,10 +303,10 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
               </Avatar>
               <div className="flex-1 text-left min-w-0">
                 <div className="text-sm font-medium text-sidebar-foreground truncate">
-                  {user.display_name}
+                  {user.display_name || 'User_Explorer'}
                 </div>
                 <div className="text-xs text-sidebar-foreground/50 capitalize">
-                  {user.role}
+                  {user.role === 'student' ? 'Student' : 'Profesor'}
                 </div>
               </div>
               <Settings className="w-4 h-4 text-sidebar-foreground/50" />
@@ -319,7 +359,7 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
           </Button>
         </div>
 
-        <SidebarContent />
+        <SidebarContent inputRef={searchInputRef} />
       </aside>
 
       {/* Collapsed Sidebar Toggle (Desktop) */}
@@ -346,7 +386,7 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
             </Link>
           </div>
           <div className="flex flex-col h-[calc(100%-3.5rem)]">
-            <SidebarContent />
+            <SidebarContent inputRef={mobileSearchInputRef} />
           </div>
         </SheetContent>
       </Sheet>
@@ -373,9 +413,9 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
                   {currentGraph.title}
                 </h1>
                 <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 bg-muted rounded-full">
-                  <Progress value={progressPercent} className="w-24 h-2 bg-muted-foreground/20" />
+                  <Progress value={progressPercent} className="w-24 h-2 bg-muted-foreground/20 [&>div]:bg-emerald-500" />
                   <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                    {completedCount}/{totalCount} nodes
+                    {completedCount}/{totalCount} noduri
                   </span>
                 </div>
               </div>
@@ -432,28 +472,8 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
             </div>
           </div>
         ) : (
-          /* Empty State */
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="text-center max-w-md">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-muted flex items-center justify-center">
-                <Network className="w-10 h-10 text-muted-foreground" />
-              </div>
-              <h2 className="text-xl font-semibold text-foreground mb-2">
-                {t('dashboard.selectGraph')}
-              </h2>
-              <p className="text-muted-foreground mb-6">
-                {t('dashboard.selectGraphDesc')}
-              </p>
-              {graphs.length === 0 && user.role === 'teacher' && (
-                <Link href="/architect">
-                  <Button className="gap-2">
-                    <Plus className="w-4 h-4" />
-                    {t('dashboard.createFirst')}
-                  </Button>
-                </Link>
-              )}
-            </div>
-          </div>
+          /* Empty State with Mesh Animation */
+          <EmptyStateSparkle className="bg-graph-bg" />
         )}
       </main>
     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useGraphStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,12 +16,41 @@ interface ClubChatProps {
   club: EduClub
 }
 
-// Toxic word detection (basic example)
-const TOXIC_WORDS = ['hate', 'stupid', 'idiot', 'dumb']
+// Hardcoded array of offensive words for Romanian and English
+const OFFENSIVE_WORDS_RO = [
+  'prost', 'prostie', 'idiot', 'stupid', 'fraier', 'cretin', 'tampit',
+  'urat', 'nasol', 'rahat', 'cacat', 'dracului', 'naiba', 'gunoi',
+  'nenorocit', 'nesimtit', 'magar', 'bou', 'tamp', 'retardat'
+]
 
-function containsToxicContent(message: string): boolean {
-  const lowerMessage = message.toLowerCase()
-  return TOXIC_WORDS.some(word => lowerMessage.includes(word))
+const OFFENSIVE_WORDS_EN = [
+  'idiot', 'stupid', 'dumb', 'moron', 'fool', 'hate', 'ugly',
+  'loser', 'trash', 'garbage', 'awful', 'terrible', 'worthless',
+  'pathetic', 'disgusting', 'suck', 'crap', 'damn', 'hell'
+]
+
+const ALL_OFFENSIVE_WORDS = [...OFFENSIVE_WORDS_RO, ...OFFENSIVE_WORDS_EN]
+
+/**
+ * Frontend automoderation function
+ * Parses text and replaces offensive words with ### or ***
+ */
+function moderateMessage(text: string): { moderated: string; wasModerated: boolean } {
+  let moderated = text
+  let wasModerated = false
+  
+  // Create a regex pattern for all offensive words (case insensitive)
+  ALL_OFFENSIVE_WORDS.forEach(word => {
+    const regex = new RegExp(`\\b${word}\\b`, 'gi')
+    if (regex.test(moderated)) {
+      wasModerated = true
+      // Replace with ### or *** randomly for variety
+      const replacement = Math.random() > 0.5 ? '###' : '***'
+      moderated = moderated.replace(regex, replacement)
+    }
+  })
+  
+  return { moderated, wasModerated }
 }
 
 // Mock messages
@@ -30,7 +59,7 @@ const mockMessages: ChatMessage[] = [
     id: '1',
     club_id: '1',
     user_id: 'user1',
-    content: 'Hey everyone! Anyone working on the calculus problems?',
+    content: 'Salut tuturor! Lucrați cineva la problemele de calcul?',
     is_moderated: false,
     created_at: new Date(Date.now() - 3600000).toISOString(),
     user: { id: 'user1', display_name: 'Alice Chen', avatar_url: null, role: 'student', created_at: '' },
@@ -39,7 +68,7 @@ const mockMessages: ChatMessage[] = [
     id: '2',
     club_id: '1',
     user_id: 'user2',
-    content: 'Yes! I am stuck on the integration by parts section. The graph visualization really helps though.',
+    content: 'Da! Am rămas blocat la secțiunea de integrare prin părți. Vizualizarea grafului ajută foarte mult.',
     is_moderated: false,
     created_at: new Date(Date.now() - 3000000).toISOString(),
     user: { id: 'user2', display_name: 'Bob Smith', avatar_url: null, role: 'student', created_at: '' },
@@ -48,7 +77,7 @@ const mockMessages: ChatMessage[] = [
     id: '3',
     club_id: '1',
     user_id: 'user3',
-    content: 'I can help! Let me share my notes from the completed nodes.',
+    content: 'Pot ajuta! Lasă-mă să-mi împart notițele de la nodurile completate.',
     is_moderated: false,
     created_at: new Date(Date.now() - 2400000).toISOString(),
     user: { id: 'user3', display_name: 'Carol Davis', avatar_url: null, role: 'student', created_at: '' },
@@ -68,40 +97,72 @@ export function ClubChat({ club }: ClubChatProps) {
   const [moderationAlert, setModerationAlert] = useState<string | null>(null)
   const [showMembers, setShowMembers] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Combine mock messages with store messages
   const allMessages = [...mockMessages, ...chatMessages.filter(m => m.club_id === club.id)]
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  }, [])
 
   useEffect(() => {
     scrollToBottom()
-  }, [allMessages])
+  }, [allMessages, scrollToBottom])
+
+  // Fix: Retain focus on input - use requestAnimationFrame to prevent re-render focus loss
+  useEffect(() => {
+    if (inputRef.current && document.activeElement !== inputRef.current) {
+      // Only refocus if the input was previously focused
+      const wasFocused = inputRef.current.dataset.wasFocused === 'true'
+      if (wasFocused) {
+        requestAnimationFrame(() => {
+          inputRef.current?.focus()
+        })
+      }
+    }
+  })
+
+  const handleInputFocus = () => {
+    if (inputRef.current) {
+      inputRef.current.dataset.wasFocused = 'true'
+    }
+  }
+
+  const handleInputBlur = () => {
+    if (inputRef.current) {
+      inputRef.current.dataset.wasFocused = 'false'
+    }
+  }
 
   const handleSend = () => {
     if (!message.trim()) return
 
-    // Check for toxic content
-    if (containsToxicContent(message)) {
-      setModerationAlert('Message blocked: inappropriate content detected. Please keep conversations respectful.')
+    // Apply frontend automoderation
+    const { moderated, wasModerated } = moderateMessage(message)
+
+    if (wasModerated) {
+      setModerationAlert('Unele cuvinte au fost filtrate. Vă rugăm să mențineți conversațiile respectuoase.')
       setTimeout(() => setModerationAlert(null), 5000)
-      return
     }
 
     const newMessage: ChatMessage = {
       id: crypto.randomUUID(),
       club_id: club.id,
       user_id: user?.id || 'current-user',
-      content: message.trim(),
-      is_moderated: false,
+      content: moderated, // Use moderated content
+      is_moderated: wasModerated,
       created_at: new Date().toISOString(),
-      user: user || { id: 'current-user', display_name: 'You', avatar_url: null, role: 'student', created_at: '' },
+      user: user || { id: 'current-user', display_name: 'Tu', avatar_url: null, role: 'student', created_at: '' },
     }
 
     addChatMessage(newMessage)
     setMessage('')
+    
+    // Maintain focus after sending
+    requestAnimationFrame(() => {
+      inputRef.current?.focus()
+    })
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -148,9 +209,9 @@ export function ClubChat({ club }: ClubChatProps) {
 
         {/* Moderation Alert */}
         {moderationAlert && (
-          <Alert variant="destructive" className="m-4 animate-in slide-in-from-top-2">
-            <AlertTriangle className="w-4 h-4" />
-            <AlertDescription className="flex items-center justify-between">
+          <Alert variant="default" className="m-4 animate-in slide-in-from-top-2 border-yellow-500/50 bg-yellow-500/10">
+            <AlertTriangle className="w-4 h-4 text-yellow-500" />
+            <AlertDescription className="flex items-center justify-between text-yellow-600 dark:text-yellow-400">
               {moderationAlert}
               <Button
                 variant="ghost"
@@ -190,11 +251,16 @@ export function ClubChat({ club }: ClubChatProps) {
                   )}>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-medium text-foreground">
-                        {isCurrentUser ? 'You' : msg.user?.display_name}
+                        {isCurrentUser ? 'Tu' : msg.user?.display_name}
                       </span>
                       <span className="text-[10px] text-muted-foreground">
                         {formatTime(msg.created_at)}
                       </span>
+                      {msg.is_moderated && (
+                        <Badge variant="outline" className="text-[9px] h-4 px-1 border-yellow-500/50 text-yellow-500">
+                          filtrat
+                        </Badge>
+                      )}
                     </div>
                     <div className={cn(
                       "px-3 py-2 rounded-2xl text-sm",
@@ -212,14 +278,17 @@ export function ClubChat({ club }: ClubChatProps) {
           </div>
         </ScrollArea>
 
-        {/* Message Input */}
+        {/* Message Input - Fixed focus retention */}
         <div className="p-4 border-t border-border">
           <div className="flex gap-2">
             <Input
+              ref={inputRef}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
+              placeholder="Scrie un mesaj..."
               className="flex-1"
             />
             <Button onClick={handleSend} disabled={!message.trim()}>
@@ -233,7 +302,7 @@ export function ClubChat({ club }: ClubChatProps) {
       {showMembers && (
         <div className="w-64 border-l border-border bg-card/50 hidden md:block">
           <div className="p-4 border-b border-border">
-            <h3 className="font-medium text-foreground">Members</h3>
+            <h3 className="font-medium text-foreground">Membri</h3>
             <p className="text-xs text-muted-foreground">{club.member_count} total</p>
           </div>
           <ScrollArea className="h-[calc(100%-4rem)]">

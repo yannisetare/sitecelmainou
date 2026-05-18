@@ -6,7 +6,15 @@ import { Graph2D } from './graph-2d'
 import { Graph3D } from './graph-3d'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { Plus, Loader2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import type { GraphNode } from '@/lib/types'
 
 interface GraphContainerProps {
   className?: string
@@ -15,6 +23,14 @@ interface GraphContainerProps {
 export function GraphContainer({ className }: GraphContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
+  const [isAddNodeOpen, setIsAddNodeOpen] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  
+  // New node form state
+  const [newNodeTitle, setNewNodeTitle] = useState('')
+  const [newNodeDescription, setNewNodeDescription] = useState('')
+  const [newNodeGroup, setNewNodeGroup] = useState('')
+  const [newNodeContent, setNewNodeContent] = useState('')
   
   const { 
     viewMode, 
@@ -23,6 +39,10 @@ export function GraphContainer({ className }: GraphContainerProps) {
     hoveredNode,
     getGraphData,
     presence,
+    currentGraph,
+    nodes,
+    setNodes,
+    isTeacher,
   } = useGraphStore()
 
   // Track container dimensions
@@ -43,6 +63,57 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
     return () => resizeObserver.disconnect()
   }, [])
+
+  const handleCreateNode = async () => {
+    if (!currentGraph || !newNodeTitle.trim()) return
+    
+    setIsCreating(true)
+    
+    try {
+      const supabase = createClient()
+      
+      // Calculate position based on existing nodes
+      const offsetX = (nodes.length % 5) * 150 - 300
+      const offsetY = Math.floor(nodes.length / 5) * 120 - 150
+      
+      const { data, error } = await supabase
+        .from('nodes')
+        .insert({
+          graph_id: currentGraph.id,
+          label: newNodeTitle.trim(),
+          description: newNodeDescription.trim() || null,
+          node_type: newNodeGroup || 'concept',
+          content_type: 'markdown',
+          content: {
+            markdown: newNodeContent.trim() || `# ${newNodeTitle}\n\nConținut pentru acest concept.`
+          },
+          position_x: offsetX,
+          position_y: offsetY,
+          position_z: 0,
+          size: 1,
+          estimated_minutes: 10,
+        })
+        .select()
+        .single()
+      
+      if (error) throw error
+      
+      // Update local state with new node
+      setNodes([...nodes, data as GraphNode])
+      
+      // Reset form and close dialog
+      setNewNodeTitle('')
+      setNewNodeDescription('')
+      setNewNodeGroup('')
+      setNewNodeContent('')
+      setIsAddNodeOpen(false)
+      
+    } catch (error) {
+      console.error('Error creating node:', error)
+    } finally {
+      setIsCreating(false)
+    }
+  }
 
   const graphData = getGraphData()
   const activeLearnersCount = new Set(presence.map(p => p.user_id)).size
@@ -96,42 +167,135 @@ export function GraphContainer({ className }: GraphContainerProps) {
         <Card className="p-3 bg-card/80 backdrop-blur-sm border-border/50">
           <div className="space-y-2 text-xs">
             <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Nodes</span>
+              <span className="text-muted-foreground">Noduri</span>
               <span className="font-medium text-foreground">{graphData.nodes.length}</span>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Connections</span>
+              <span className="text-muted-foreground">Conexiuni</span>
               <span className="font-medium text-foreground">{graphData.links.length}</span>
             </div>
             {activeLearnersCount > 0 && (
               <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Active learners</span>
+                <span className="text-muted-foreground">Activi acum</span>
                 <span className="font-medium text-accent">{activeLearnersCount}</span>
               </div>
             )}
           </div>
         </Card>
+
+        {/* Add Node Button - Only for teachers */}
+        {isTeacher && currentGraph && (
+          <Dialog open={isAddNodeOpen} onOpenChange={setIsAddNodeOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-2 bg-primary hover:bg-primary/90">
+                <Plus className="w-4 h-4" />
+                Add Node
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Adaugă Nod Nou</DialogTitle>
+                <DialogDescription>
+                  Creează un nou concept în graful de cunoștințe.
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="node-title">Titlu *</Label>
+                  <Input
+                    id="node-title"
+                    value={newNodeTitle}
+                    onChange={(e) => setNewNodeTitle(e.target.value)}
+                    placeholder="Ex: Introducere în Algebră"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="node-group">Grup / Sub-capitol</Label>
+                  <Select value={newNodeGroup} onValueChange={setNewNodeGroup}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selectează grupul" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="beginner">Nivel Începător</SelectItem>
+                      <SelectItem value="intermediate">Nivel Intermediar</SelectItem>
+                      <SelectItem value="advanced">Nivel Avansat</SelectItem>
+                      <SelectItem value="concept">Concept General</SelectItem>
+                      <SelectItem value="exercise">Exercițiu Practic</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="node-description">Descriere</Label>
+                  <Input
+                    id="node-description"
+                    value={newNodeDescription}
+                    onChange={(e) => setNewNodeDescription(e.target.value)}
+                    placeholder="Descriere scurtă a conceptului"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="node-content">Conținut Markdown</Label>
+                  <Textarea
+                    id="node-content"
+                    value={newNodeContent}
+                    onChange={(e) => setNewNodeContent(e.target.value)}
+                    placeholder="# Titlu&#10;&#10;Conținutul lecției în format Markdown..."
+                    rows={5}
+                    className="font-mono text-sm"
+                  />
+                </div>
+              </div>
+              
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddNodeOpen(false)}>
+                  Anulează
+                </Button>
+                <Button 
+                  onClick={handleCreateNode}
+                  disabled={!newNodeTitle.trim() || isCreating}
+                  className="gap-2"
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Se creează...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" />
+                      Creează Nod
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Legend */}
       <Card className="absolute bottom-4 left-4 p-3 bg-card/80 backdrop-blur-sm border-border/50 z-10">
-        <div className="text-xs font-medium text-foreground mb-2">Legend</div>
+        <div className="text-xs font-medium text-foreground mb-2">Legendă</div>
         <div className="space-y-1.5 text-xs">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-node-completed" />
-            <span className="text-muted-foreground">Completed</span>
+            <span className="text-muted-foreground">Completat</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-node-in-progress" />
-            <span className="text-muted-foreground">In Progress</span>
+            <span className="text-muted-foreground">În Progres</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-node-unlocked" />
-            <span className="text-muted-foreground">Unlocked</span>
+            <span className="text-muted-foreground">Deblocat</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-node-locked opacity-40" />
-            <span className="text-muted-foreground">Locked</span>
+            <span className="text-muted-foreground">Blocat</span>
           </div>
         </div>
       </Card>
@@ -139,7 +303,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
       {/* Node info tooltip */}
       {hoveredNode && !selectedNode && (
         <Card className="absolute top-4 right-4 p-4 bg-card/95 backdrop-blur-sm border-border/50 z-10 max-w-xs">
-          <h3 className="font-semibold text-foreground text-sm">{hoveredNode.title}</h3>
+          <h3 className="font-semibold text-foreground text-sm">{hoveredNode.label}</h3>
           {hoveredNode.description && (
             <p className="text-muted-foreground text-xs mt-1 line-clamp-2">
               {hoveredNode.description}
@@ -147,10 +311,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
           )}
           <div className="flex items-center gap-3 mt-2 text-xs">
             <span className="text-muted-foreground">
-              Difficulty: <span className="text-foreground">{hoveredNode.difficulty}/5</span>
-            </span>
-            <span className="text-muted-foreground">
-              ~{hoveredNode.estimated_minutes} min
+              Click pentru detalii
             </span>
           </div>
         </Card>
@@ -159,9 +320,9 @@ export function GraphContainer({ className }: GraphContainerProps) {
       {/* Keyboard shortcuts hint */}
       <div className="absolute bottom-4 right-4 text-xs text-muted-foreground/60 z-10">
         {viewMode === '2d' ? (
-          <span>Scroll to zoom, drag to pan</span>
+          <span>Scroll pentru zoom, drag pentru navigare</span>
         ) : (
-          <span>Drag to rotate, scroll to zoom</span>
+          <span>Drag pentru rotire, scroll pentru zoom</span>
         )}
       </div>
     </div>
