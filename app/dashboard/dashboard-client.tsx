@@ -150,14 +150,11 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input
             ref={inputRef}
-            placeholder="Caută grafuri..."
-            value={searchQuery}
+            placeholder={t('sidebar.searchGraphs')}
+            defaultValue={searchQuery}
             onChange={(e) => {
-              e.stopPropagation()
               setSearchQuery(e.target.value)
             }}
-            onFocus={(e) => e.target.dataset.focused = 'true'}
-            onBlur={(e) => e.target.dataset.focused = 'false'}
             className="pl-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground placeholder:text-sidebar-foreground/50"
           />
         </div>
@@ -194,7 +191,7 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
           )}
         >
           <Network className="w-4 h-4" />
-          Grafurile Mele
+          {t('sidebar.myGraphs')}
         </button>
         <button
           onClick={() => setActiveView('educlubs')}
@@ -222,7 +219,7 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
           <div className="space-y-1">
             {filteredGraphs.length === 0 ? (
               <p className="px-3 py-2 text-sm text-sidebar-foreground/50">
-                {searchQuery ? 'Niciun graf găsit' : t('dashboard.noGraphs')}
+                {searchQuery ? t('sidebar.noGraphFound') : t('dashboard.noGraphs')}
               </p>
             ) : (
               filteredGraphs.map(graph => (
@@ -256,24 +253,24 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
       {/* Legend - Status indicators */}
       <div className="p-3 border-t border-sidebar-border">
         <div className="text-xs font-medium text-sidebar-foreground/60 uppercase tracking-wider mb-2">
-          Legendă Status
+          {t('sidebar.legend')}
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="flex items-center gap-2 text-sidebar-foreground/70">
             <CheckCircle2 className="w-3.5 h-3.5 text-accent" />
-            <span>Completat</span>
+            <span>{t('sidebar.completed')}</span>
           </div>
           <div className="flex items-center gap-2 text-sidebar-foreground/70">
             <CircleDot className="w-3.5 h-3.5 text-yellow-500" />
-            <span>În Progres</span>
+            <span>{t('sidebar.inProgress')}</span>
           </div>
           <div className="flex items-center gap-2 text-sidebar-foreground/70">
             <Circle className="w-3.5 h-3.5 text-primary" />
-            <span>Deblocat</span>
+            <span>{t('sidebar.unlocked')}</span>
           </div>
           <div className="flex items-center gap-2 text-sidebar-foreground/70">
             <Lock className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>Blocat</span>
+            <span>{t('sidebar.locked')}</span>
           </div>
         </div>
       </div>
@@ -306,7 +303,7 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
                   {user.display_name || 'User_Explorer'}
                 </div>
                 <div className="text-xs text-sidebar-foreground/50 capitalize">
-                  {user.role === 'student' ? 'Student' : 'Profesor'}
+                  {user.role === 'student' ? t('auth.student') : t('auth.teacher')}
                 </div>
               </div>
               <Settings className="w-4 h-4 text-sidebar-foreground/50" />
@@ -415,7 +412,7 @@ export function DashboardClient({ user, initialGraphs }: DashboardClientProps) {
                 <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 bg-muted rounded-full">
                   <Progress value={progressPercent} className="w-24 h-2 bg-muted-foreground/20 [&>div]:bg-emerald-500" />
                   <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                    {completedCount}/{totalCount} noduri
+                    {completedCount}/{totalCount} {t('sidebar.nodes')}
                   </span>
                 </div>
               </div>

@@ -266,5 +266,21 @@ export const translations: Record<Language, Record<string, string>> = {
     'settings.deleting': 'Se sterge...',
     'settings.cancel': 'Anuleaza',
     'settings.confirm': 'Da, Sterge Contul Meu',
+    'settings.clearData': 'Sterge Datele',
+    'settings.clearDataDesc': 'Sterge tot progresul si datele de invatare',
+    'settings.clearDataConfirm': 'Esti sigur ca vrei sa stergi toate datele? Aceasta actiune nu poate fi anulata.',
+    'settings.clearing': 'Se sterge...',
+    'settings.clearConfirm': 'Da, Sterge Toate Datele',
+    
+    // Sidebar
+    'sidebar.searchGraphs': 'Cauta grafuri...',
+    'sidebar.myGraphs': 'Grafurile Mele',
+    'sidebar.noGraphFound': 'Niciun graf gasit',
+    'sidebar.legend': 'Legenda Status',
+    'sidebar.completed': 'Completat',
+    'sidebar.inProgress': 'In Progres',
+    'sidebar.unlocked': 'Deblocat',
+    'sidebar.locked': 'Blocat',
+    'sidebar.nodes': 'noduri',
   },
 }
