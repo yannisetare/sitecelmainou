@@ -17,6 +17,7 @@ interface Profile {
   id: string
   email: string | null
   full_name: string | null
+  display_name: string | null
   role: string | null
   avatar_url: string | null
   bio: string | null
@@ -32,6 +33,7 @@ export default function ProfilePage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [formData, setFormData] = useState({
     full_name: '',
+    display_name: '',
     bio: '',
   })
 
@@ -68,6 +70,7 @@ export default function ProfilePage() {
           setProfile(newProfile)
           setFormData({
             full_name: newProfile.full_name || '',
+            display_name: newProfile.display_name || '',
             bio: newProfile.bio || '',
           })
         }
@@ -75,6 +78,7 @@ export default function ProfilePage() {
         setProfile(profileData)
         setFormData({
           full_name: profileData.full_name || '',
+          display_name: profileData.display_name || '',
           bio: profileData.bio || '',
         })
       }
@@ -96,6 +100,7 @@ export default function ProfilePage() {
       .from('profiles')
       .update({
         full_name: formData.full_name,
+        display_name: formData.display_name,
         bio: formData.bio,
       })
       .eq('id', profile.id)
@@ -180,6 +185,16 @@ export default function ProfilePage() {
               <CardTitle>{t('profile.personalInfo')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="displayName">{t('profile.displayName')}</Label>
+                <Input
+                  id="displayName"
+                  value={formData.display_name}
+                  onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
+                  placeholder={t('profile.displayNamePlaceholder')}
+                />
+              </div>
+              
               <div className="grid gap-2">
                 <Label htmlFor="fullName">{t('profile.fullName')}</Label>
                 <Input

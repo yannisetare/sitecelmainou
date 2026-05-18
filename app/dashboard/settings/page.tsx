@@ -33,6 +33,7 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
+  const [clearing, setClearing] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system')
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
 
@@ -119,6 +120,20 @@ export default function SettingsPage() {
     await supabase.auth.signOut()
     
     router.push('/')
+  }
+
+  const handleClearData = async () => {
+    if (!profile) return
+    
+    setClearing(true)
+    
+    const supabase = createClient()
+    
+    // Clear all user progress
+    await supabase.from('user_progress').delete().eq('user_id', profile.id)
+    
+    setClearing(false)
+    router.refresh()
   }
 
   if (loading) {
@@ -236,7 +251,43 @@ export default function SettingsPage() {
               <CardTitle className="text-destructive">{t('settings.dangerZone')}</CardTitle>
               <CardDescription>{t('settings.dangerZoneDesc')}</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* Clear Data */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <p className="font-medium">{t('settings.clearData')}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {t('settings.clearDataDesc')}
+                  </p>
+                </div>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="border-destructive text-destructive hover:bg-destructive/10">
+                      {t('settings.clearData')}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{t('settings.clearData')}</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {t('settings.clearDataConfirm')}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>{t('settings.cancel')}</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleClearData}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        disabled={clearing}
+                      >
+                        {clearing ? t('settings.clearing') : t('settings.clearConfirm')}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+
+              {/* Delete Account */}
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <p className="font-medium">{t('settings.deleteAccount')}</p>
