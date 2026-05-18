@@ -20,6 +20,126 @@ interface PathResult {
 }
 
 /**
+ * BFS Algorithm - Used when quiz is successful to unlock adjacent nodes
+ * Finds all directly connected neighbor nodes (one hop away)
+ */
+export function bfsUnlockAdjacentNodes(
+  nodes: GraphNode[],
+  edges: Edge[],
+  completedNodeId: string
+): string[] {
+  // Build adjacency list (both directions for unlocking)
+  const adjacency = new Map<string, Set<string>>()
+  nodes.forEach(n => adjacency.set(n.id, new Set()))
+  
+  edges.forEach(e => {
+    // Add outgoing connections (completed node unlocks its targets)
+    adjacency.get(e.source_id)?.add(e.target_id)
+  })
+  
+  // BFS to find immediate neighbors (1-level deep)
+  const visited = new Set<string>([completedNodeId])
+  const queue: string[] = [completedNodeId]
+  const unlockedNodes: string[] = []
+  
+  // Single level BFS - only direct neighbors
+  const neighbors = adjacency.get(completedNodeId) || new Set()
+  neighbors.forEach(neighborId => {
+    if (!visited.has(neighborId)) {
+      unlockedNodes.push(neighborId)
+      visited.add(neighborId)
+    }
+  })
+  
+  return unlockedNodes
+}
+
+/**
+ * Dijkstra Algorithm - Used when quiz fails to find recovery path
+ * Returns suggested prerequisite concepts to review
+ */
+export function dijkstraRecoveryPath(
+  nodes: GraphNode[],
+  edges: Edge[],
+  userProgress: Map<string, { status: ProgressStatus; score?: number | null }>,
+  failedNodeId: string
+): { remedialPath: GraphNode[]; message: string } {
+  // Build reverse adjacency (find prerequisites)
+  const prerequisites = new Map<string, string[]>()
+  nodes.forEach(n => prerequisites.set(n.id, []))
+  
+  edges.forEach(e => {
+    const deps = prerequisites.get(e.target_id) || []
+    deps.push(e.source_id)
+    prerequisites.set(e.target_id, deps)
+  })
+  
+  const nodeMap = new Map<string, GraphNode>()
+  nodes.forEach(n => nodeMap.set(n.id, n))
+  
+  // Initialize distances
+  const distances = new Map<string, number>()
+  const previous = new Map<string, string | null>()
+  const unvisited = new Set<string>()
+  
+  nodes.forEach(n => {
+    distances.set(n.id, Infinity)
+    previous.set(n.id, null)
+    unvisited.add(n.id)
+  })
+  distances.set(failedNodeId, 0)
+  
+  // Find all prerequisites of the failed node that aren't completed
+  const directPrereqs = prerequisites.get(failedNodeId) || []
+  const incompletePrereqs = directPrereqs.filter(prereqId => {
+    const progress = userProgress.get(prereqId)
+    return !progress || progress.status !== 'completed'
+  })
+  
+  // If there are incomplete prerequisites, suggest those first
+  if (incompletePrereqs.length > 0) {
+    const remedialNodes = incompletePrereqs
+      .map(id => nodeMap.get(id))
+      .filter((n): n is GraphNode => n !== undefined)
+      .sort((a, b) => (a.size || 1) - (b.size || 1)) // Sort by difficulty (size)
+    
+    return {
+      remedialPath: remedialNodes,
+      message: `Recomandam să revizuiești aceste concepte înainte de a încerca din nou:`
+    }
+  }
+  
+  // If all prerequisites are complete but quiz still failed,
+  // find the easiest related nodes to review
+  const completedPrereqs = directPrereqs
+    .map(id => nodeMap.get(id))
+    .filter((n): n is GraphNode => n !== undefined)
+    .sort((a, b) => (a.size || 1) - (b.size || 1))
+    .slice(0, 3) // Suggest up to 3 for review
+  
+  if (completedPrereqs.length > 0) {
+    return {
+      remedialPath: completedPrereqs,
+      message: `Încearcă să revizuiești aceste concepte completate pentru a-ți îmbunătăți înțelegerea:`
+    }
+  }
+  
+  // Fallback: suggest reviewing any easier nodes
+  const easierNodes = nodes
+    .filter(n => {
+      const progress = userProgress.get(n.id)
+      return progress?.status === 'completed' && n.id !== failedNodeId
+    })
+    .sort((a, b) => (b.size || 1) - (a.size || 1)) // Most recently relevant
+    .slice(0, 2)
+  
+  return {
+    remedialPath: easierNodes,
+    message: `Revizuiește conceptele anterioare pentru a te pregăti mai bine:`
+  }
+}
+
+/**
  * Heuristic function - estimates cost from node to goal
  * Uses difficulty and estimated time as factors
  */
